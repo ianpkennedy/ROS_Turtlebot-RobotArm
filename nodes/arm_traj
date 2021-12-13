@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+import rospy
+
+from std_msgs.msg import Header
+from sensor_msgs.msg import JointState
+import math
+
+
+"""
+The arm_traj node, it publishes sensors_msgs/JointState data to move the two link robot that was designed in the second part of the homework
+Publishers:
+    joint_states of type sensor_msgs/JointState
+
+
+"""
+
+t = 0.0
+
+
+def calculate(len1,len2,peri):
+
+    """
+    This function calculates the appropriate x,y positions for the trajectory
+    source: accessed 10/17 http://hades.mech.northwestern.edu/images/2/25/MR-v2.pdf
+
+    Args:
+        len1: link1 length in meters
+        len2: link2 length in meters
+        peri: period T for the trajectory
+
+    """
+
+    global t
+    
+    
+    x = 0.9*math.cos(2*math.pi*t/(peri))*math.sqrt(5)*(len1+len2)/3.0
+    y = 2*(len1+len2)/3
+
+
+    beta = math.acos((len1**2 + len2**2 - x**2 - y**2)/(2*len1*len2))
+    alpha = math.acos((x**2 + y**2 + len1**2 - len2**2)/(2*len1*math.sqrt(x**2 + y**2)))
+
+    theta1 = math.atan2(y,x)-alpha
+    theta2 = math.pi-beta
+
+    print(' x  y time theta1 theta2 ',x,y,t,theta1,theta2)
+
+    t+=(1/60.0)
+    return theta1, theta2
+
+
+class Armtraj:
+    
+    def __init__(self):
+
+        """
+        Init function to load in parameters, setup publisher for joint_states and set up timer
+        """
+        self.l1 = rospy.get_param("l1")
+        self.l2 = rospy.get_param("l2")
+        self.period = rospy.get_param("period")
+        self.joint_pub = rospy.Publisher('/joint_states', JointState,queue_size=10000)
+        self.timer = rospy.Timer(rospy.Duration(1/60.0),self.timer_callback)
+
+
+    def timer_callback(self,event):
+        """
+        This is the timer call back to publish the joint states
+        Args:
+            None (event not used)
+
+        Sources:
+        Publishing joint states in arm_traj node: https://answers.ros.org/question/213075/publish-joint_state-with-python-to-rviz/ (accessed 10/16)
+        https://www.programcreek.com/python/?code=disaster-robotics-proalertas%2Fusv_sim_lsa%2Fusv_sim_lsa-master%2Fusv_base_ctrl%2Fscripts%2Frudder_control_heading_old.py (accessed 10/16)
+        """   
+        
+        data = JointState()
+        data.header = Header()
+        data.header.stamp = rospy.Time.now()
+
+        data.name = ['joint0','joint1','joint2']
+        cmd1, cmd2 = calculate(self.l1,self.l2,self.period)
+        data.position = [cmd1,cmd2,0.0]
+        data.velocity=[]
+        data.effort=[]
+
+        self.joint_pub.publish(data)
+
+
+
+def main():
+    """
+    Main function
+    """
+    rospy.init_node('arm_traj')
+    arm = Armtraj()
+    rospy.spin()
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,138 @@
+#!/usr/bin/env python
+import rospy
+from visualization_msgs.msg import Marker
+import math
+import tf2_ros
+
+"""
+The arm_marker node publishes to markers to track the two link arm
+Publishers:
+    marker1 of type visualization_msgs/Marker publishes markers
+
+Listeners:
+
+    Listens for the transform between the base map link and the end effector of the two link arm
+
+"""
+
+
+t = 0.0
+count = 0
+
+
+class Arm_Marker:
+
+    def __init__(self):
+        """
+        Default init function. Publishes visualization markers in RVIZ for the two arm URDF
+        of part II of homework 2
+        
+        """
+
+
+        self.l1 = rospy.get_param("l1")
+        self.l2 = rospy.get_param("l2")
+        self.period = rospy.get_param("period")
+        
+
+        #setup the marker publisher and marker object
+        self.mark_pub = rospy.Publisher('mark1',Marker,queue_size= 5)
+
+        self.marker = Marker()
+        self.marker.header.frame_id="map"
+        self.marker.ns = "markerns"
+        self.marker.id = 0
+        self.marker.type = self.marker.SPHERE
+        self.marker.action = self.marker.ADD
+        self.marker.color.a=1.0
+        self.marker.color.r=0.0
+        self.marker.color.g=1.0
+        self.marker.color.b=0.0
+
+        self.marker.scale.x = 0.5
+        self.marker.scale.y = 0.5
+        self.marker.scale.z = 0.5
+
+        self.buff = tf2_ros.Buffer()
+        self.listen = tf2_ros.TransformListener(self.buff)
+
+        self.timer2 = rospy.Timer(rospy.Duration(0.1),self.timer_callback2)
+        self.timer = rospy.Timer(rospy.Duration(self.period/20),self.timer_callback)
+        
+
+    def timer_callback2(self,event):
+
+        """
+
+        Callback to lookup transform to end effector
+        Args:
+            Event not used
+        Source: http://wiki.ros.org/tf2/Tutorials/tf2%20and%20time%20%28Python%29 (accessed 10/17)
+                http://wiki.ros.org/tf2/Tutorials/Writing%20a%20tf2%20listener%20%28Python%29 (accessed 10/17)
+        """
+        try:
+            self.tr = self.buff.lookup_transform("map","effector",rospy.Time())
+        
+            rospy.loginfo("The current transform between map and end effector is " + str(self.tr))
+
+        except:
+            pass
+
+        global t
+        t+=0.1
+  
+        
+  
+    def timer_callback(self,event):
+        """
+        Timer callback. Event arg not used.
+        Args:
+            Event (not used)
+        Source:
+            https://www.programcreek.com/python/example/88812/visualization_msgs.msg.Marker (accessed 10/17)
+
+        """
+        global t
+
+        global count
+        count += 1
+
+
+        #Set up marker 
+        self.marker.pose.orientation.x=0
+        self.marker.pose.orientation.y=0
+        self.marker.pose.orientation.z=0
+        self.marker.pose.orientation.w=1
+        self.marker.pose.position.x = 0.9*math.cos(2*math.pi*t/(self.period))*math.sqrt(5)*(self.l1+self.l2)/3.0
+        self.marker.pose.position.y = 2*(self.l1+self.l2)/3
+        self.marker.pose.position.z = 0
+        self.marker.lifetime=rospy.Duration(self.period/5.0)
+    
+        self.marker.id = count
+        self.marker.color.r=0.0
+        self.marker.color.g=1.0
+        self.marker.color.b=0.0
+
+
+        #Change the marker type based off of the x value of the end effector arm
+        if self.tr.transform.translation.x > 0.0:
+            self.marker.type = self.marker.SPHERE
+            self.marker.color.r=0.0
+        else:
+            self.marker.type = self.marker.CUBE
+            self.marker.color.r=1.0
+
+        self.mark_pub.publish(self.marker)
+           
+
+def main():
+    """
+    Main
+    """
+    rospy.init_node('arm_marker')
+    arm_mark = Arm_Marker()
+    rospy.spin()
+
+
+if __name__ == '__main__':
+    main()

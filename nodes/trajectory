@@ -1,0 +1,175 @@
+#!/usr/bin/env python
+
+import rospy
+import time
+import geometry_msgs.msg
+from geometry_msgs.msg import Twist, Vector3
+import homework2.turtlekin as turtlekin
+from std_srvs.srv import Empty, EmptyResponse
+import tf2_ros
+from tf_conversions import transformations
+from turtlesim.msg import Pose
+import math
+
+
+
+"""
+The trajectory node publishes a geometry_msgs/Twist message at a constant frequency to drive the turtlebot, or the simulation. It 
+also broadcasts a static transformation from the world to odom frame (from x=0,y=0,theta=0  to x=0,y=0,theta=theta0). 
+It provides services /pause and /resume and loads parameters width, height, period, and ~pub_freq
+
+Publishers:
+    cmd_vel of type gemometry_msgs/Twist publishes the message driving the turtle
+
+Services:
+    pause of type Empty pauses the turtle in its trajectory
+    resume of type Empty resumes the turtle in its trajectory
+
+Parameters:
+    width
+    height
+    period: Period for
+    pub_freq: Twist publication frequency
+
+
+
+
+source: http://wiki.ros.org/rospy/Overview/Time (10/10)
+        t = rospy.Time.from_sec(time.time())
+        seconds = t.to_sec()
+        print('seconds ', seconds)
+        print('seconds -1000000000',seconds - 1000000000)
+"""
+
+i=0.0
+
+class Kinematics:
+    """
+    This class publishes cmd_vel, broadcasts the world to odom transform, creates the puase/resume services
+    """
+    
+    def __init__(self):
+        """
+        Default init function. Publishes to cmd_vel, creates a static 
+
+        Source: https://www.programcreek.com/python/?project_name=OTL%2Fcozmo_driver# (accessed 10/14)
+        """
+        #Create the cmd_vel publisher, and the pause/resume services
+
+
+        self.cmd_vel_pub = rospy.Publisher('/turtle1/cmd_vel',Twist, queue_size=10)
+        self.bot_cmd_vel_pub = rospy.Publisher('cmd_vel',Twist, queue_size=10)
+        self.pause = rospy.Service('pause',Empty,self.pause_handle)
+        self.resume = rospy.Service('resume',Empty,self.resume_handle)
+        
+
+        self.period = rospy.get_param("period")
+        self.height = rospy.get_param("height")
+        self.width = rospy.get_param("width")
+        self.pub_freq = rospy.get_param("/trajectory/pub_freq")
+
+
+
+       
+        self.theta0 = turtlekin.anginit(self.width,self.height,self.period,1/(self.pub_freq))
+
+        rospy.set_param('theta0',self.theta0)
+
+        
+
+        #Broadcasting the static world to odom transform
+        self.stat_broadcast = tf2_ros.StaticTransformBroadcaster()
+        self.world_odom = geometry_msgs.msg.TransformStamped()
+        self.world_odom.header.stamp = rospy.Time.now()
+        self.world_odom.header.frame_id = "world"
+        self.world_odom.child_frame_id = "odom"
+        self.world_odom.transform.translation.x=5.5445
+        self.world_odom.transform.translation.y=5.5445
+        self.world_odom.transform.translation.z=0
+
+        self.rota=transformations.quaternion_about_axis(0, [0, 0, 1])
+        self.world_odom.transform.rotation = geometry_msgs.msg.Quaternion(*self.rota)
+        self.stat_broadcast.sendTransform(self.world_odom)  
+
+
+        #self.buf = tf2_ros.Buffer()
+        #self.listen = tf2_ros.TransformListener(self.buf)
+
+        self.timer = rospy.Timer(rospy.Duration(1/self.pub_freq),self.timer_callback)
+
+    def timer_callback(self,event):
+        """
+        Callback for geometry_msgs/Twist publishing
+
+        Args:
+            None
+
+        """      
+        global i
+        self.state = rospy.get_param("state")
+
+
+        #Run the sim/turtle
+        if self.state == 1:
+          
+            i+=(1/self.pub_freq)
+            self.vdot = turtlekin.linmath(self.width,self.height,self.period,i)
+            self.thetadot = turtlekin.angmath(self.width,self.height,self.period,i)
+
+        #Stop the sim/turtle
+        if self.state == 0:
+            self.vdot = 0.0
+            self.thetadot = 0.0      
+
+        self.cmd_vel_pub.publish(Twist(Vector3(self.vdot,0,0),Vector3(0,0,self.thetadot)))
+        self.bot_cmd_vel_pub.publish(Twist(Vector3(self.vdot,0,0),Vector3(0,0,self.thetadot)))
+
+
+    """
+    sources for the following 2 handles, accessesd 10/10: 
+    
+    https://www.programcreek.com/python/?code=BerkeleyAutomation%2Fperception%2Fperception-master%2Fros_nodes%2Fweight_publisher.py
+    https://answers.ros.org/question/357883/how-to-implement-service-in-a-class-in-rospy-with-no-args/
+    https://www.programcreek.com/python/?code=OTL%2Fros_book_programs%2Fros_book_programs-master%2Fros_start%2Fscritps%2Fservice_server.py
+
+    """
+    def pause_handle(self,req):
+        """
+        The pause call back sets the state parameter to 0 to pause the turtle, or the turtlebot
+        Args:
+            None
+        Return
+            EmptyResponse
+        """
+        rospy.set_param('state',0)
+        global secplace
+        secplace=0
+       
+        return EmptyResponse()
+
+    def resume_handle(self,req):
+        """
+        The resume call back sets the state parameter to 1 to set the turtle, or the turtlebot in motion
+        Args:
+            None
+        Return
+            EmptyResponse
+        """
+
+        rospy.set_param('state',1)
+        
+        return EmptyResponse()
+
+
+def main():
+    """
+    This is the main function
+    """
+    rospy.init_node('trajectory')
+    kin = Kinematics()
+    rospy.spin()
+
+
+if __name__ == '__main__':
+    main()
+

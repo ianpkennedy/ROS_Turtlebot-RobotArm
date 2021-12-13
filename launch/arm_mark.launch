@@ -1,0 +1,18 @@
+<launch>
+
+<arg name="use_jsp" default="false" />
+
+<param name="test" value= "$(arg use_jsp)" />
+
+<include file="$(find homework2)/launch/arm_basics.launch">
+    <arg name="use_jsp" value="$(arg use_jsp)"/>
+</include>
+
+<group unless="$(arg use_jsp)">
+  <node name="arm_traj" pkg="homework2" type="arm_traj"/>
+  <node name="arm_marker" pkg="homework2" type="arm_marker"/>
+</group>
+
+
+</launch>
+

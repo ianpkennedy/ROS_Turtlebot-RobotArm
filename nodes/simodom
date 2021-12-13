@@ -1,0 +1,132 @@
+#!/usr/bin/env python
+
+import rospy
+from nav_msgs.msg import Odometry
+from turtlesim.msg import Pose
+from geometry_msgs.msg import Twist, Vector3, TransformStamped, Quaternion,Point
+
+from tf_conversions import transformations
+import tf2_ros
+
+import numpy as np
+
+from time import sleep
+
+from turtlesim.srv import TeleportRelative
+import homework2.turtlekin as turtlekin
+
+
+
+"""
+The simodom node subscribes to the the turtle Pose and converts it to the odom type, , and publishes it.
+
+Publishers:
+    odom of type nav_msgs/Odometry publishes the Pose message data in a different format
+
+Subscribers:
+    turtle1/pose of type Pose is the positional data provided by the turtlesim
+
+
+
+"""
+speed = Twist()
+
+class Simulate:
+    """
+    This class allows the use of the turtlesim node to simulate the robot in alternate environments
+    """
+    def __init__(self):
+        """
+        Initialization method
+        """
+        #Let trajectory node start first
+        sleep(0.1)
+        self.theta0 = rospy.get_param("theta0")
+
+
+        self.turtle_twist_sub = rospy.Subscriber("/turtle1/cmd_vel",Twist,self.turtle_twist_sub_callback)
+        self.turtle_pose_sub = rospy.Subscriber('/turtle1/pose', Pose, self.turtle_pose_sub_callback)
+   
+        self.nav_odom_pub = rospy.Publisher('odom',Odometry,queue_size=1000)
+        #self.timer = rospy.Timer(rospy.Duration(0.01),self.timer_odom_call)
+
+        self.broadcast = tf2_ros.TransformBroadcaster()
+
+        #Download parameters
+        self.period = rospy.get_param("period")
+        self.height = rospy.get_param("height")
+        self.width = rospy.get_param("width")
+        self.pub_freq = rospy.get_param("/trajectory/pub_freq")
+
+        self.tele = rospy.ServiceProxy('/turtle1/teleport_relative', TeleportRelative)
+
+        #orient the turtlesim bot in the correct orientation
+        self.tele(0,turtlekin.anginit(self.width,self.height,self.period,1/(self.pub_freq)))
+
+    def turtle_twist_sub_callback(self,data):
+        """
+        The twist callback gets the turtlesim bot pose data
+        """       
+        global speed
+        speed = data
+
+    def turtle_pose_sub_callback(self,data):
+        """
+        The pose callback subscribes to turtle1/pose, and publishes it in the odom format
+        Args:
+            data (Pose): The positional and velocity data of the turtlesim/robot. 
+                x,y,theta are the linear and angular position components
+                linear_velocity and angular_velocity are the velocity components
+                source for this callback, 10/14: https://gist.github.com/atotto/f2754f75bedb6ea56e3e0264ec405dcf
+                source for this callback, 10/14: https://www.programcreek.com/python/?code=OTL%2Fcozmo_driver%2Fcozmo_driver-master%2Fnodes%2Fcozmo_driver.py
+
+        """
+        #Define the odom base link transform
+
+
+        self.odom_base=TransformStamped()
+        self.odom_base.header.frame_id="odom"
+        self.odom_base.child_frame_id="base_footprint"
+        self.odom_base.transform.translation.x =  data.x - 5.5445
+        self.odom_base.transform.translation.y = data.y - 5.5445
+        self.odom_base.transform.translation.z = 0
+        rotation = transformations.quaternion_about_axis(data.theta-self.theta0, [0, 0, 1])
+        rotation1 = transformations.quaternion_about_axis(data.theta, [0, 0, 1])
+
+
+        self.odom_base.transform.rotation = Quaternion(*rotation)
+        self.odom_base.header.stamp = rospy.Time.now()
+        self.broadcast.sendTransform(self.odom_base)
+
+
+        #Create the odo
+        self.obj= Odometry()
+        self.obj.header.stamp= self.odom_base.header.stamp
+        self.obj.header.frame_id = "odom"
+        self.obj.child_frame_id = "base_footprint"
+
+
+        #Define odometry msg and publish
+        self.obj.pose.pose.position.x = data.x -5.5445
+        self.obj.pose.pose.position.y = data.y -5.5445
+        self.obj.pose.pose.position.z = 0.0
+        self.obj.pose.covariance = np.diag([0,0,0,0,0,0]).ravel()
+        self.obj.pose.pose.orientation = Quaternion(*rotation1)
+        self.obj.twist.twist.linear.x = speed.linear.x
+        self.obj.twist.twist.angular.z = speed.angular.z
+
+
+        self.nav_odom_pub.publish(self.obj)
+
+     
+def main():
+    """
+    Main function, creates the simodom node
+    """
+    rospy.init_node('simodom')
+    sim = Simulate()
+    rospy.spin()
+
+
+if __name__ == '__main__':
+    main()

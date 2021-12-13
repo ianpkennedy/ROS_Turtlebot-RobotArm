@@ -1,0 +1,23 @@
+<launch>
+  <rosparam file="$(find homework2)/config/arm.yaml" />
+
+  <param name="robot_description" command="$(find xacro)/xacro $(find homework2)/urdf/twoarm.urdf.xacro" />
+  <arg name="use_jsp" default="false" />
+
+  <group if="$(arg use_jsp)">
+    <node pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" name="joint_state_publisher_gui" >
+      <param name="use_gui" value="true" /> 
+      <param name="rate" value="50"/> 
+    </node>
+  </group>
+  
+  <group unless="$(arg use_jsp)">
+    <node pkg="joint_state_publisher" type="joint_state_publisher" name="joint_state_publisher"/>
+  </group>
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+   
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find homework2)/rviz/arm_basic.rviz"/>
+
+</launch>
+
