@@ -18,8 +18,21 @@ Then, run the following command in ROS:
 
 Videos can be found here:
 - Rviz: https://drive.google.com/file/d/15QMGKcQZelHSi6WOPE75VDkCTaUyIsSn/view?usp=sharing
+
+
+![alt-text](https://github.com/ianpkennedy/ROS_Turtlebot-RobotArm/blob/main/turtlebot_sim.gif)
+
+
 - turtlesim: https://drive.google.com/file/d/1e04FHbHZuz6ry3XCZVjnIkW92Xe_NwFZ/view?usp=sharing 
+
+
+![alt-text](https://github.com/ianpkennedy/ROS_Turtlebot-RobotArm/blob/main/turtlesim.gif)
+
+
 - On a real turtlebot: https://drive.google.com/file/d/1WBGLXYgAfla4xsxKw3uB7OaM3i0Lm2Pv/view?usp=sharing
+
+
+![alt-text](https://github.com/ianpkennedy/ROS_Turtlebot-RobotArm/blob/main/turtlebot_real.gif)
 
 
 ## Part 2
